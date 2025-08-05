@@ -3,7 +3,7 @@ PyMuPDF>=1.23.0
 paddlepaddle>=2.5.0
 paddleocr>=2.7.0
 pdf2image>=1.16.0
-opencv-python-headless>=4.8.0
+opencv-python-headless==4.7.0.72
 Pillow>=10.0.0
 numpy>=1.24.0
 pdfplumber>=0.10.0
