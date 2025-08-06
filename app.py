@@ -4,8 +4,8 @@ import streamlit as st
 import fitz  # PyMuPDF
 import pdfplumber  # pdfplumber 기반 텍스트 추출용
 
-st.set_page_config(page_title="한글 PDF 텍스트 추출기", layout="centered")
-st.title("📄 한글 PDF 텍스트 추출기 (OCR 제거 버전)")
+st.set_page_config(page_title="PDF 텍스트 추출기", layout="centered")
+st.title("📄 PDF 텍스트 추출기(페이지별 Json 변환))")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
