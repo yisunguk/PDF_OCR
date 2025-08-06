@@ -1,10 +1,11 @@
 import os
 from datetime import datetime
 import streamlit as st
-from utils.ocr_processor import hybrid_extract, pdfplumber_extract
+import fitz  # PyMuPDF
+import pdfplumber  # pdfplumber 기반 텍스트 추출용
 
-st.set_page_config(page_title="한글 PDF 하이브리드 추출기", layout="centered")
-st.title("📄 한글 PDF 하이브리드 추출기 (텍스트 + 필요한 페이지만 OCR)")
+st.set_page_config(page_title="한글 PDF 텍스트 추출기", layout="centered")
+st.title("📄 한글 PDF 텍스트 추출기 (OCR 제거 버전)")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -14,8 +15,6 @@ for k, v in {"timestamp": None, "json_path": None}.items():
 
 uploaded_file = st.file_uploader("PDF 파일을 업로드하세요", type=["pdf"])
 extract_method = st.selectbox("텍스트 추출 방식 선택", ["PyMuPDF", "pdfplumber"])
-min_chars = st.number_input("OCR 전환 기준(한 페이지 텍스트 글자 수)", min_value=0, value=20, step=5)
-dpi = st.slider("OCR 대상 페이지 이미지 DPI", min_value=120, max_value=300, value=200, step=10)
 
 if uploaded_file:
     if not st.session_state.timestamp:
@@ -25,37 +24,51 @@ if uploaded_file:
     with open(temp_pdf, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
-    image_dir = os.path.join(BASE_DIR, "output", "images", st.session_state.timestamp)
     filename_base = os.path.splitext(uploaded_file.name)[0]
-
     json_path = os.path.join(BASE_DIR, "output", "json",
-                             f"{filename_base}_hybrid_result_{st.session_state.timestamp}.json")
+                             f"{filename_base}_text_result_{st.session_state.timestamp}.json")
+    os.makedirs(os.path.dirname(json_path), exist_ok=True)
 
-    if st.button("🚀 하이브리드 추출 실행"):
+    if st.button("🚀 텍스트 추출 실행"):
         try:
-            st.info("진행 중… (내장 텍스트 → OCR 대상 판별 → 대상 페이지만 OCR)")
-            if extract_method == "PyMuPDF":
-                saved_path, ocr_pages = hybrid_extract(
-                    pdf_path=temp_pdf,
-                    image_dir=image_dir,
-                    output_json_path=json_path,
-                    min_chars=min_chars,
-                    dpi=dpi,
-                )
-            else:
-                saved_path, ocr_pages = pdfplumber_extract(
-                    pdf_path=temp_pdf,
-                    image_dir=image_dir,
-                    output_json_path=json_path,
-                    min_chars=min_chars,
-                    dpi=dpi,
-                )
+            st.info("텍스트 추출 중…")
 
-            st.success(f"완료! OCR 수행 페이지 수: {ocr_pages}")
-            st.caption(f"JSON 경로: {saved_path}")
-            with open(saved_path, "rb") as f:
-                st.download_button("📥 결과 JSON 다운로드", f, file_name=os.path.basename(saved_path), mime="application/json")
-            st.session_state.json_path = saved_path
+            result = {
+                "pdf_path": temp_pdf,
+                "pages": []
+            }
+
+            if extract_method == "PyMuPDF":
+                doc = fitz.open(temp_pdf)
+                for i, page in enumerate(doc):
+                    text = page.get_text().strip()
+                    result["pages"].append({
+                        "page_number": i + 1,
+                        "char_count": len(text),
+                        "text": text
+                    })
+                doc.close()
+
+            else:  # pdfplumber
+                doc = pdfplumber.open(temp_pdf)
+                for i, page in enumerate(doc.pages):
+                    text = page.extract_text() or ""
+                    result["pages"].append({
+                        "page_number": i + 1,
+                        "char_count": len(text),
+                        "text": text
+                    })
+                doc.close()
+
+            with open(json_path, "w", encoding="utf-8") as f:
+                import json
+                json.dump(result, f, ensure_ascii=False, indent=2)
+
+            st.success("완료! 결과 JSON 생성됨.")
+            with open(json_path, "rb") as f:
+                st.download_button("📥 결과 JSON 다운로드", f, file_name=os.path.basename(json_path),
+                                   mime="application/json")
+            st.session_state.json_path = json_path
 
         except Exception as e:
             st.error(f"실패: {e}")
